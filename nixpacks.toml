@@ -1,6 +1,6 @@
 [phases.setup]
 nixPkgs = ["python311", "python311Packages.pip"]
-aptPkgs = ["python3-dev", "python3-distutils"]
+nixPkgs = ["python311"]
 
 [phases.install]
 cmds = ["pip install -r requirements.txt"]
