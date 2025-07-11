@@ -1,3 +1,21 @@
 [phases.setup]
-nixPkgs = ["python311"]
-aptPkgs = ["libgl1-mesa-dev", "libglib2.0-0", "build-essential", "python3-dev"]
+nixPkgs = [
+  "python311",
+  "python311Packages.pip",
+  "python311Packages.setuptools",
+  "python311Packages.wheel",
+  "libGL",                # Fix for OpenCV GUI linkage error
+  "libGLU",               # Just in case
+  "libglvnd",             # GL driver loader
+  "ffmpeg",               # For video processing
+  "alsaLib",              # For sounddevice (optional)
+]
+
+[phases.install]
+cmds = [
+  "pip install --upgrade pip",
+  "pip install -r requirements.txt"
+]
+
+[start]
+cmd = "gunicorn app:app --bind 0.0.0.0:8080"
