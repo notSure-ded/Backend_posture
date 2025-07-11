@@ -3,3 +3,6 @@ builder = "NIXPACKS"
 
 [deploy]
 startCommand = "python app.py"
+
+[build.env]
+NIXPACKS_APT_PKGS = "libgl1-mesa-glx libglib2.0-0"
