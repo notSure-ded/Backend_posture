@@ -86,6 +86,10 @@ def encode_frame_to_base64(frame):
     except Exception as e:
         print(f"Encoding error: {e}")
         return None
+        
+@app.route('/')
+def home():
+    return 'Server is alive!'
 
 @app.route('/health', methods=['GET'])
 def health():
