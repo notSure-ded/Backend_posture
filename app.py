@@ -1,10 +1,21 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+import subprocess
+import sys
+import os
+
+
+subprocess.run([sys.executable, "-m", "pip", "uninstall", "opencv-python", "opencv-contrib-python", "opencv-python-headless", "-y"], 
+               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+subprocess.run([sys.executable, "-m", "pip", "install", "opencv-python-headless==4.8.1.78", "--no-cache-dir", "--force-reinstall"], 
+               check=True)
+
 import cv2
 import mediapipe as mp
 import numpy as np
 import tempfile
-import os
+
 import base64
 
 app = Flask(__name__)
