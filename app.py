@@ -1,32 +1,11 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import subprocess
-import sys
+import cv2
+import mediapipe as mp
+import numpy as np
+import base64
+import tempfile
 import os
-
-# Auto-install OpenCV
-try:
-    print("Installing OpenCV...")
-    subprocess.run([sys.executable, "-m", "pip", "uninstall", "opencv-python", "opencv-contrib-python", "opencv-python-headless", "-y"],
-                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
-    subprocess.run([sys.executable, "-m", "pip", "install", "opencv-python-headless==4.10.0.84", "--no-cache-dir", "--force-reinstall"],
-                   check=True, capture_output=True, text=True)
-    print("OpenCV installed.")
-except subprocess.CalledProcessError as e:
-    print(f"Failed to install OpenCV: {e}\nSTDOUT: {e.stdout}\nSTDERR: {e.stderr}")
-    sys.exit(1)
-
-# Imports
-try:
-    import cv2
-    import mediapipe as mp
-    import numpy as np
-    import base64
-    import tempfile
-    print("Imports successful.")
-except ImportError as e:
-    print(f"Import error: {e}")
-    sys.exit(1)
 
 app = Flask(__name__)
 CORS(app)
@@ -34,7 +13,6 @@ CORS(app)
 mp_pose = mp.solutions.pose
 mp_drawing = mp.solutions.drawing_utils
 
-# Angle calculation
 def calculate_angle(a, b, c):
     try:
         a, b, c = np.array(a), np.array(b), np.array(c)
@@ -44,10 +22,9 @@ def calculate_angle(a, b, c):
         angle = np.degrees(np.arccos(np.clip(cosine, -1.0, 1.0)))
         return angle
     except Exception as e:
-        print(f"Angle error: {e}")
+        print(f"Angle calculation error: {e}")
         return 0
 
-# Analyze posture logic
 def analyze_posture_frame(landmarks):
     try:
         ls, rs = [landmarks[11].x, landmarks[11].y], [landmarks[12].x, landmarks[12].y]
@@ -75,10 +52,9 @@ def analyze_posture_frame(landmarks):
 
         return good_posture, back_angle, neck_angle
     except Exception as e:
-        print(f"Posture error: {e}")
+        print(f"Posture analysis error: {e}")
         return None, None, None
 
-# Encode frame to base64
 def encode_frame_to_base64(frame):
     try:
         _, buffer = cv2.imencode('.jpg', frame)
@@ -86,16 +62,15 @@ def encode_frame_to_base64(frame):
     except Exception as e:
         print(f"Encoding error: {e}")
         return None
-        
+
 @app.route('/')
 def home():
-    return 'Server is alive!'
+    return '✅ Server is alive!'
 
 @app.route('/health', methods=['GET'])
 def health():
     return jsonify({'status': 'healthy', 'opencv_version': cv2.__version__}), 200
 
-# /analyze – Summary + annotated frames
 @app.route('/analyze', methods=['POST'])
 def analyze():
     try:
@@ -162,7 +137,6 @@ def analyze():
         print(f"Analyze error: {e}")
         return jsonify({'error': f'Failed: {str(e)}'}), 500
 
-# /analyze_frames – Per-frame feedback
 @app.route('/analyze_frames', methods=['POST'])
 def analyze_frames():
     try:
@@ -198,8 +172,7 @@ def analyze_frames():
                         feedback = "✅ Good posture" if good_posture else "⚠️ Bad posture"
                     mp_drawing.draw_landmarks(frame, results.pose_landmarks, mp_pose.POSE_CONNECTIONS)
 
-                _, buffer = cv2.imencode('.jpg', frame)
-                encoded = base64.b64encode(buffer).decode('utf-8')
+                encoded = encode_frame_to_base64(frame)
 
                 result_frames.append({
                     "frame": f"data:image/jpeg;base64,{encoded}",
@@ -215,5 +188,5 @@ def analyze_frames():
         print(f"analyze_frames error: {e}")
         return jsonify({'error': f'Failed: {str(e)}'}), 500
 
-
-
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000, debug=True)
