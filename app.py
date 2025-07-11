@@ -216,6 +216,7 @@ def analyze_frames():
         return jsonify({'error': f'Failed: {str(e)}'}), 500
 
 if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 8080))
-    print(f"Starting Flask server on port {port}")
+    import os
+    port = int(os.environ.get("PORT", 5000))  
+    print(f"🚀 Starting Flask server on 0.0.0.0:{port}")
     app.run(host="0.0.0.0", port=port, debug=False)
