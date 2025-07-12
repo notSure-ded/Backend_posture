@@ -1,9 +1,23 @@
 [phases.setup]
-nixPkgs = ["python311", "libGL", "mesa", "glib", "xorg.libXext", "xorg.libSM", "xorg.libXrender", "fontconfig"]
-aptPkgs = ["libgl1-mesa-dev", "libglib2.0-0", "build-essential", "python3-dev"]
+nixPkgs = [
+  "python311",
+  "libGL",
+  "mesa",
+  "glib",
+  "xorg.libXext",
+  "xorg.libSM",
+  "xorg.libXrender",
+  "fontconfig"
+]
+aptPkgs = [
+  "libgl1-mesa-glx",
+  "libglib2.0-0",
+  "build-essential",
+  "python3-dev"
+]
 
 [start]
-cmd = "gunicorn app:app --bind 0.0.0.0:$PORT"
+cmd = "gunicorn app:app --bind 0.0.0.0:${PORT}"
 
 [variables]
 LD_LIBRARY_PATH = "/usr/lib/x86_64-linux-gnu:/lib/x86_64-linux-gnu"
