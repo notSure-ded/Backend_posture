@@ -6,7 +6,7 @@ gunicorn==21.2.0
 # Computer vision and ML
 mediapipe==0.10.15
 opencv-python-headless==4.8.1.78
-opencv-python==none  # This line prevents reinstall
+opencv-python==none;  # This line prevents reinstall
 numpy==1.26.4
 
 # Core dependencies
