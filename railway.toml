@@ -1,8 +1,0 @@
-[build]
-builder = "NIXPACKS"
-
-[build.env]
-NIXPACKS_APT_PKGS = "libgl1-mesa-glx libglib2.0-0"
-
-[deploy]
-startCommand = "gunicorn app:app --bind 0.0.0.0:$PORT"
