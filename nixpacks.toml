@@ -1,23 +1,10 @@
 [phases.setup]
 nixPkgs = [
-  "python311",
+  "python310",
   "libGL",
   "mesa",
-  "glib",
-  "xorg.libXext",
-  "xorg.libSM",
-  "xorg.libXrender",
-  "fontconfig"
-]
-aptPkgs = [
-  "libgl1-mesa-glx",
-  "libglib2.0-0",
-  "build-essential",
-  "python3-dev"
+  "glib"
 ]
 
 [start]
 cmd = "gunicorn app:app --bind 0.0.0.0:${PORT}"
-
-[variables]
-LD_LIBRARY_PATH = "/usr/lib/x86_64-linux-gnu:/lib/x86_64-linux-gnu"
