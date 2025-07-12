@@ -1,3 +1,3 @@
 [phases.setup]
-nixPkgs = ["python311"]
+nixPkgs = ["python311", "libGL", "glib", "libxext", "libSM", "libxrender", "libfontconfig", "mesa"]
 aptPkgs = ["libgl1-mesa-dev", "libglib2.0-0", "build-essential", "python3-dev"]
