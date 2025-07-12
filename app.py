@@ -2,15 +2,35 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import sys
 import os
+import subprocess
 
-# Don't install packages at runtime - handle this in requirements.txt
 print("Starting Flask app...")
 
-# Set OpenCV to headless mode
-import os
+# Force uninstall opencv-contrib-python (if mistakenly installed)
+try:
+    print("🔧 Checking for opencv-contrib-python...")
+    subprocess.run(
+        [sys.executable, "-m", "pip", "uninstall", "-y", "opencv-contrib-python"],
+        check=True
+    )
+    print("✅ Uninstalled opencv-contrib-python successfully")
+except Exception as e:
+    print(f"⚠️ Failed to uninstall opencv-contrib-python: {e}")
+
+# Optional: force reinstall correct version
+try:
+    subprocess.run(
+        [sys.executable, "-m", "pip", "install", "--upgrade", "opencv-python"],
+        check=True
+    )
+    print("✅ Installed correct opencv-python")
+except Exception as e:
+    print(f"⚠️ Failed to install opencv-python: {e}")
+
+# Prevent EXR error
 os.environ['OPENCV_IO_ENABLE_OPENEXR'] = '0'
 
-# Imports with proper error handling
+# Imports with error handling
 try:
     import cv2
     import mediapipe as mp
@@ -20,9 +40,9 @@ try:
     print("✅ All imports successful")
 except ImportError as e:
     print(f"❌ Import error: {e}")
-    # Don't exit - let Railway see the error
     import traceback
     traceback.print_exc()
+
 
 app = Flask(__name__)
 CORS(app)
