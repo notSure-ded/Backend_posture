@@ -10,25 +10,12 @@ print("Starting Flask app...")
 os.environ['OPENCV_IO_ENABLE_OPENEXR'] = '0'
 os.environ['QT_QPA_PLATFORM'] = 'offscreen'
 
-# Fix OpenCV installation - use headless version
-try:
-    print("🔧 Fixing OpenCV installation...")
-    
-    # Uninstall all OpenCV packages
-    subprocess.run([sys.executable, "-m", "pip", "uninstall", "-y", "opencv-python"], capture_output=True)
-    subprocess.run([sys.executable, "-m", "pip", "uninstall", "-y", "opencv-contrib-python"], capture_output=True)
-    subprocess.run([sys.executable, "-m", "pip", "uninstall", "-y", "opencv-python-headless"], capture_output=True)
-    
-    # Install headless version (no GUI dependencies)
-    subprocess.run([sys.executable, "-m", "pip", "install", "opencv-python-headless==4.8.1.78"], check=True)
-    print("✅ Installed opencv-python-headless")
-    
-    # Fix numpy version conflict with mediapipe
-    subprocess.run([sys.executable, "-m", "pip", "install", "numpy==1.24.3"], check=True)
-    print("✅ Fixed numpy version")
-    
-except Exception as e:
-    print(f"⚠️ Failed to fix dependencies: {e}")
+# Set environment variables for headless operation
+os.environ['OPENCV_IO_ENABLE_OPENEXR'] = '0'
+os.environ['QT_QPA_PLATFORM'] = 'offscreen'
+os.environ['PYTHONUNBUFFERED'] = '1'
+
+print("🔧 Environment configured for headless operation")
 
 # Imports with error handling
 try:
