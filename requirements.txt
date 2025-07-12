@@ -4,25 +4,24 @@ flask-cors==4.0.0
 gunicorn==21.2.0
 
 # Computer vision and ML
-mediapipe==0.10.15
 opencv-python-headless==4.8.1.78
-opencv-python==none;  # This line prevents reinstall
 numpy==1.26.4
+mediapipe==0.10.15
 
 # Core dependencies
-Pillow==11.3.0
+Pillow==10.4.0
 protobuf==4.25.8
-packaging==25.0
-Werkzeug==3.1.3
+packaging==24.1
+Werkzeug==3.0.3
 
 # Utilities
 requests==2.32.4
-certifi==2025.7.9
-charset-normalizer==3.4.2
-urllib3==2.5.0
-idna==3.10
+certifi==2024.8.30
+charset-normalizer==3.3.2
+urllib3==2.2.2
+idna==3.7
 
 # Optional: Only include if you actually use these
-# pandas==2.3.1
-# matplotlib==3.10.3
-# scipy==1.15.3
+# pandas==2.2.2
+# matplotlib==3.9.2
+# scipy==1.13.1
