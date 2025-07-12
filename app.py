@@ -6,56 +6,71 @@ import subprocess
 
 print("Starting Flask app...")
 
-# Force uninstall opencv-contrib-python (if mistakenly installed)
-try:
-    print("🔧 Checking for opencv-contrib-python...")
-    subprocess.run(
-        [sys.executable, "-m", "pip", "uninstall", "-y", "opencv-contrib-python"],
-        check=True
-    )
-    print("✅ Uninstalled opencv-contrib-python successfully")
-except Exception as e:
-    print(f"⚠️ Failed to uninstall opencv-contrib-python: {e}")
-
-# Optional: force reinstall correct version
-try:
-    subprocess.run(
-        [sys.executable, "-m", "pip", "install", "--upgrade", "opencv-python"],
-        check=True
-    )
-    print("✅ Installed correct opencv-python")
-except Exception as e:
-    print(f"⚠️ Failed to install opencv-python: {e}")
-
-# Prevent EXR error
+# Set environment variables BEFORE any imports
 os.environ['OPENCV_IO_ENABLE_OPENEXR'] = '0'
+os.environ['QT_QPA_PLATFORM'] = 'offscreen'
+
+# Fix OpenCV installation - use headless version
+try:
+    print("🔧 Fixing OpenCV installation...")
+    
+    # Uninstall all OpenCV packages
+    subprocess.run([sys.executable, "-m", "pip", "uninstall", "-y", "opencv-python"], capture_output=True)
+    subprocess.run([sys.executable, "-m", "pip", "uninstall", "-y", "opencv-contrib-python"], capture_output=True)
+    subprocess.run([sys.executable, "-m", "pip", "uninstall", "-y", "opencv-python-headless"], capture_output=True)
+    
+    # Install headless version (no GUI dependencies)
+    subprocess.run([sys.executable, "-m", "pip", "install", "opencv-python-headless==4.8.1.78"], check=True)
+    print("✅ Installed opencv-python-headless")
+    
+    # Fix numpy version conflict with mediapipe
+    subprocess.run([sys.executable, "-m", "pip", "install", "numpy==1.24.3"], check=True)
+    print("✅ Fixed numpy version")
+    
+except Exception as e:
+    print(f"⚠️ Failed to fix dependencies: {e}")
 
 # Imports with error handling
 try:
     import cv2
+    print(f"✅ OpenCV imported successfully - version: {cv2.__version__}")
+except ImportError as e:
+    print(f"❌ OpenCV import error: {e}")
+    cv2 = None
+
+try:
     import mediapipe as mp
+    print(f"✅ MediaPipe imported successfully - version: {mp.__version__}")
+except ImportError as e:
+    print(f"❌ MediaPipe import error: {e}")
+    mp = None
+
+try:
     import numpy as np
     import base64
     import tempfile
-    print("✅ All imports successful")
+    print(f"✅ NumPy imported successfully - version: {np.__version__}")
 except ImportError as e:
-    print(f"❌ Import error: {e}")
+    print(f"❌ NumPy import error: {e}")
     import traceback
     traceback.print_exc()
-
 
 app = Flask(__name__)
 CORS(app)
 
 # Initialize MediaPipe only if imports succeeded
-try:
-    mp_pose = mp.solutions.pose
-    mp_drawing = mp.solutions.drawing_utils
-    print("✅ MediaPipe initialized")
-except Exception as e:
-    print(f"❌ MediaPipe initialization failed: {e}")
-    mp_pose = None
-    mp_drawing = None
+mp_pose = None
+mp_drawing = None
+
+if mp and cv2:
+    try:
+        mp_pose = mp.solutions.pose
+        mp_drawing = mp.solutions.drawing_utils
+        print("✅ MediaPipe initialized")
+    except Exception as e:
+        print(f"❌ MediaPipe initialization failed: {e}")
+        mp_pose = None
+        mp_drawing = None
 
 # Angle calculation
 def calculate_angle(a, b, c):
@@ -121,11 +136,17 @@ def home():
 @app.route('/health', methods=['GET'])
 def health():
     try:
-        cv2_version = cv2.__version__ if 'cv2' in globals() else 'Not available'
+        cv2_version = cv2.__version__ if cv2 else 'Not available'
+        mp_version = mp.__version__ if mp else 'Not available'
+        numpy_version = np.__version__ if 'np' in globals() else 'Not available'
+        
         return jsonify({
-            'status': 'healthy',
+            'status': 'healthy' if cv2 and mp else 'degraded',
             'opencv_version': cv2_version,
-            'mediapipe_available': 'mp' in globals(),
+            'mediapipe_version': mp_version,
+            'numpy_version': numpy_version,
+            'mediapipe_available': mp_pose is not None,
+            'opencv_available': cv2 is not None,
             'python_version': sys.version
         }), 200
     except Exception as e:
@@ -136,9 +157,16 @@ def health():
 
 @app.route('/analyze', methods=['POST'])
 def analyze():
-    # Check if MediaPipe is available
-    if not mp_pose or not mp_drawing:
-        return jsonify({'error': 'MediaPipe not available - system dependencies missing'}), 500
+    # Check if dependencies are available
+    if not mp_pose or not mp_drawing or not cv2:
+        return jsonify({
+            'error': 'Required dependencies not available',
+            'details': {
+                'opencv_available': cv2 is not None,
+                'mediapipe_available': mp_pose is not None,
+                'suggestion': 'Try installing: pip install opencv-python-headless mediapipe numpy==1.24.3'
+            }
+        }), 500
         
     try:
         if 'video' not in request.files:
@@ -218,9 +246,15 @@ def analyze():
 
 @app.route('/analyze_frames', methods=['POST'])
 def analyze_frames():
-    # Check if MediaPipe is available
-    if not mp_pose or not mp_drawing:
-        return jsonify({'error': 'MediaPipe not available - system dependencies missing'}), 500
+    # Check if dependencies are available
+    if not mp_pose or not mp_drawing or not cv2:
+        return jsonify({
+            'error': 'Required dependencies not available',
+            'details': {
+                'opencv_available': cv2 is not None,
+                'mediapipe_available': mp_pose is not None
+            }
+        }), 500
         
     try:
         if 'video' not in request.files:
@@ -281,4 +315,11 @@ if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     print(f"🚀 Starting Flask server on 0.0.0.0:{port}")
     print(f"📱 Health check: http://0.0.0.0:{port}/health")
+    
+    # Print dependency status
+    print(f"📋 Dependency Status:")
+    print(f"   OpenCV: {'✅' if cv2 else '❌'}")
+    print(f"   MediaPipe: {'✅' if mp else '❌'}")
+    print(f"   NumPy: {'✅' if 'np' in globals() else '❌'}")
+    
     app.run(host="0.0.0.0", port=port, debug=False)
