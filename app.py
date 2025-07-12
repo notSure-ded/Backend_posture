@@ -6,6 +6,10 @@ import os
 # Don't install packages at runtime - handle this in requirements.txt
 print("Starting Flask app...")
 
+# Set OpenCV to headless mode
+import os
+os.environ['OPENCV_IO_ENABLE_OPENEXR'] = '0'
+
 # Imports with proper error handling
 try:
     import cv2
@@ -23,9 +27,15 @@ except ImportError as e:
 app = Flask(__name__)
 CORS(app)
 
-# Initialize MediaPipe
-mp_pose = mp.solutions.pose
-mp_drawing = mp.solutions.drawing_utils
+# Initialize MediaPipe only if imports succeeded
+try:
+    mp_pose = mp.solutions.pose
+    mp_drawing = mp.solutions.drawing_utils
+    print("✅ MediaPipe initialized")
+except Exception as e:
+    print(f"❌ MediaPipe initialization failed: {e}")
+    mp_pose = None
+    mp_drawing = None
 
 # Angle calculation
 def calculate_angle(a, b, c):
@@ -106,6 +116,10 @@ def health():
 
 @app.route('/analyze', methods=['POST'])
 def analyze():
+    # Check if MediaPipe is available
+    if not mp_pose or not mp_drawing:
+        return jsonify({'error': 'MediaPipe not available - system dependencies missing'}), 500
+        
     try:
         if 'video' not in request.files:
             return jsonify({'error': 'No video file provided'}), 400
@@ -184,6 +198,10 @@ def analyze():
 
 @app.route('/analyze_frames', methods=['POST'])
 def analyze_frames():
+    # Check if MediaPipe is available
+    if not mp_pose or not mp_drawing:
+        return jsonify({'error': 'MediaPipe not available - system dependencies missing'}), 500
+        
     try:
         if 'video' not in request.files:
             return jsonify({'error': 'No video file provided'}), 400
