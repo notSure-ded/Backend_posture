@@ -3,4 +3,4 @@ nixPkgs = ["python311", "libGL", "mesa", "glib", "xorg.libXext", "xorg.libSM", "
 aptPkgs = ["libgl1-mesa-dev", "libglib2.0-0", "build-essential", "python3-dev"]
 
 [start]
-cmd = "LD_LIBRARY_PATH=/nix/store/*/lib:$LD_LIBRARY_PATH gunicorn app:app"
+cmd = "export LD_LIBRARY_PATH=$(find /nix/store -name 'lib' -type d | tr '\n' ':')$LD_LIBRARY_PATH && gunicorn app:app"
