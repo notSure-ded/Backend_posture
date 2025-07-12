@@ -1,36 +1,29 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import subprocess
 import sys
 import os
 
-# Auto-install OpenCV
-try:
-    print("Installing OpenCV...")
-    subprocess.run([sys.executable, "-m", "pip", "uninstall", "opencv-python", "opencv-contrib-python", "opencv-python-headless", "-y"],
-                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
-    subprocess.run([sys.executable, "-m", "pip", "install", "opencv-python-headless==4.10.0.84", "--no-cache-dir", "--force-reinstall"],
-                   check=True, capture_output=True, text=True)
-    print("OpenCV installed.")
-except subprocess.CalledProcessError as e:
-    print(f"Failed to install OpenCV: {e}\nSTDOUT: {e.stdout}\nSTDERR: {e.stderr}")
-    sys.exit(1)
+# Don't install packages at runtime - handle this in requirements.txt
+print("Starting Flask app...")
 
-# Imports
+# Imports with proper error handling
 try:
     import cv2
     import mediapipe as mp
     import numpy as np
     import base64
     import tempfile
-    print("Imports successful.")
+    print("✅ All imports successful")
 except ImportError as e:
-    print(f"Import error: {e}")
-    sys.exit(1)
+    print(f"❌ Import error: {e}")
+    # Don't exit - let Railway see the error
+    import traceback
+    traceback.print_exc()
 
 app = Flask(__name__)
 CORS(app)
 
+# Initialize MediaPipe
 mp_pose = mp.solutions.pose
 mp_drawing = mp.solutions.drawing_utils
 
@@ -44,7 +37,7 @@ def calculate_angle(a, b, c):
         angle = np.degrees(np.arccos(np.clip(cosine, -1.0, 1.0)))
         return angle
     except Exception as e:
-        print(f"Angle error: {e}")
+        print(f"Angle calculation error: {e}")
         return 0
 
 # Analyze posture logic
@@ -75,7 +68,7 @@ def analyze_posture_frame(landmarks):
 
         return good_posture, back_angle, neck_angle
     except Exception as e:
-        print(f"Posture error: {e}")
+        print(f"Posture analysis error: {e}")
         return None, None, None
 
 # Encode frame to base64
@@ -84,92 +77,121 @@ def encode_frame_to_base64(frame):
         _, buffer = cv2.imencode('.jpg', frame)
         return base64.b64encode(buffer).decode('utf-8')
     except Exception as e:
-        print(f"Encoding error: {e}")
+        print(f"Frame encoding error: {e}")
         return None
 
 @app.route('/')
 def home():
-    return 'Server is alive!'
+    return jsonify({
+        'message': 'Posture Analysis API is running!',
+        'status': 'healthy',
+        'endpoints': ['/health', '/analyze', '/analyze_frames']
+    })
 
 @app.route('/health', methods=['GET'])
 def health():
-    return jsonify({'status': 'healthy', 'opencv_version': cv2.__version__}), 200
+    try:
+        cv2_version = cv2.__version__ if 'cv2' in globals() else 'Not available'
+        return jsonify({
+            'status': 'healthy',
+            'opencv_version': cv2_version,
+            'mediapipe_available': 'mp' in globals(),
+            'python_version': sys.version
+        }), 200
+    except Exception as e:
+        return jsonify({
+            'status': 'unhealthy',
+            'error': str(e)
+        }), 500
 
-# /analyze – Summary + annotated frames
 @app.route('/analyze', methods=['POST'])
 def analyze():
     try:
         if 'video' not in request.files:
-            return jsonify({'error': 'No video uploaded'}), 400
+            return jsonify({'error': 'No video file provided'}), 400
 
         video = request.files['video']
+        if video.filename == '':
+            return jsonify({'error': 'No video file selected'}), 400
+
+        # Create temporary file
         with tempfile.NamedTemporaryFile(delete=False, suffix='.webm') as temp:
             video.save(temp.name)
             path = temp.name
 
+        # Process video
         cap = cv2.VideoCapture(path)
         if not cap.isOpened():
             os.remove(path)
-            return jsonify({'error': 'Could not open video'}), 400
+            return jsonify({'error': 'Could not open video file'}), 400
 
-        total, good, bad = 0, 0, 0
+        total_frames, good_frames, bad_frames = 0, 0, 0
         frames_data = []
 
-        with mp_pose.Pose(static_image_mode=False) as pose:
+        with mp_pose.Pose(static_image_mode=False, min_detection_confidence=0.5) as pose:
             while cap.isOpened():
                 ret, frame = cap.read()
                 if not ret:
                     break
 
-                total += 1
-                rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                results = pose.process(rgb)
+                total_frames += 1
+                rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                results = pose.process(rgb_frame)
 
                 if not results.pose_landmarks:
                     continue
 
                 landmarks = results.pose_landmarks.landmark
                 good_posture, back_angle, neck_angle = analyze_posture_frame(landmarks)
-                verdict = "✅ Good posture" if good_posture else "⚠️ Bad posture"
+                
+                if good_posture is not None:
+                    verdict = "✅ Good posture" if good_posture else "⚠️ Bad posture"
+                    good_frames += int(good_posture)
+                    bad_frames += int(not good_posture)
+                else:
+                    verdict = "❓ Could not analyze"
 
-                good += good_posture
-                bad += not good_posture
-
+                # Draw landmarks
                 mp_drawing.draw_landmarks(frame, results.pose_landmarks, mp_pose.POSE_CONNECTIONS)
-                encoded = encode_frame_to_base64(frame)
+                encoded_frame = encode_frame_to_base64(frame)
 
-                if encoded:
+                if encoded_frame:
                     frames_data.append({
-                        'frame': f"data:image/jpeg;base64,{encoded}",
+                        'frame': f"data:image/jpeg;base64,{encoded_frame}",
                         'feedback': verdict
                     })
 
         cap.release()
         os.remove(path)
 
-        score = round((good / total) * 100, 2) if total else 0
+        # Calculate score
+        score = round((good_frames / total_frames) * 100, 2) if total_frames > 0 else 0
 
         return jsonify({
-            'total_frames': total,
-            'good_posture_frames': good,
-            'bad_posture_frames': bad,
+            'total_frames': total_frames,
+            'good_posture_frames': good_frames,
+            'bad_posture_frames': bad_frames,
             'posture_score': score,
-            'message': '✅ Good posture overall!' if score > 80 else '⚠️ Fix your posture!',
+            'message': '✅ Good posture overall!' if score > 80 else '⚠️ Consider improving your posture!',
             'frames': frames_data
         })
 
     except Exception as e:
-        print(f"Analyze error: {e}")
-        return jsonify({'error': f'Failed: {str(e)}'}), 500
+        print(f"Analysis error: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Analysis failed: {str(e)}'}), 500
 
-# /analyze_frames – Per-frame feedback
 @app.route('/analyze_frames', methods=['POST'])
 def analyze_frames():
     try:
         if 'video' not in request.files:
-            return jsonify({'error': 'No video uploaded'}), 400
+            return jsonify({'error': 'No video file provided'}), 400
 
         video = request.files['video']
+        if video.filename == '':
+            return jsonify({'error': 'No video file selected'}), 400
+
         with tempfile.NamedTemporaryFile(delete=False, suffix='.webm') as temp:
             video.save(temp.name)
             path = temp.name
@@ -177,18 +199,18 @@ def analyze_frames():
         cap = cv2.VideoCapture(path)
         if not cap.isOpened():
             os.remove(path)
-            return jsonify({'error': 'Could not open video'}), 400
+            return jsonify({'error': 'Could not open video file'}), 400
 
         result_frames = []
 
-        with mp_pose.Pose(static_image_mode=False) as pose:
+        with mp_pose.Pose(static_image_mode=False, min_detection_confidence=0.5) as pose:
             while cap.isOpened():
                 ret, frame = cap.read()
                 if not ret:
                     break
 
-                rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                results = pose.process(rgb)
+                rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                results = pose.process(rgb_frame)
 
                 feedback = "⚠️ No person detected"
 
@@ -212,11 +234,13 @@ def analyze_frames():
         return jsonify(result_frames)
 
     except Exception as e:
-        print(f"analyze_frames error: {e}")
-        return jsonify({'error': f'Failed: {str(e)}'}), 500
+        print(f"Frame analysis error: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Frame analysis failed: {str(e)}'}), 500
 
 if __name__ == '__main__':
-    import os
-    port = int(os.environ.get("PORT", 5000)) 
+    port = int(os.environ.get("PORT", 5000))
     print(f"🚀 Starting Flask server on 0.0.0.0:{port}")
+    print(f"📱 Health check: http://0.0.0.0:{port}/health")
     app.run(host="0.0.0.0", port=port, debug=False)
